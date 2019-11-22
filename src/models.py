@@ -206,7 +206,7 @@ class ContentMotionEncoder(nn.Module):
 
 class VideoGenerator(nn.Module):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
-                 video_length, contentngf=64):
+                 video_length, ngf=64):
         super(VideoGenerator, self).__init__()
 
         self.n_channels = n_channels
