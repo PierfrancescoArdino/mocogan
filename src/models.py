@@ -221,7 +221,7 @@ class VideoGenerator(nn.Module):
         video_len = video_len if video_len is not None else self.video_length
 
         # h_t = [self.get_gru_initial_state(num_samples)]
-        h_t = [h]
+        h_t = [h.transpose(1, 0)]
 
         for frame_num in range(video_len):
             e_t = self.get_iteration_noise(num_samples)
@@ -253,8 +253,7 @@ class VideoGenerator(nn.Module):
     def sample_z_content(self, num_samples, z, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
 
-        # content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
-        content = torch.repeat_interleave(z, video_len, axis=0)
+        content = torch.repeat_interleave(z.transpose(1, 0), video_len, axis=0)
         if torch.cuda.is_available():
             content = content.cuda()
         return Variable(content)

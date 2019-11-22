@@ -12,8 +12,8 @@ class MotionEncoder(nn.Module):
         self.fc2 = nn.Linear(1024, 512, bias=True)
         self.fc3 = nn.Linear(512, 256, bias=True)
 
-        self.fc4 = nn.Linear(256, 2, bias=True)
-        self.fc5 = nn.Linear(256, 2, bias=True)
+        self.fc4 = nn.Linear(256, 320, bias=True)
+        self.fc5 = nn.Linear(256, 320, bias=True)
 
     def forward(self, x):
         x = x.view(-1, 4096)
