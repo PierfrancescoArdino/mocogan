@@ -254,9 +254,7 @@ class VideoGenerator(nn.Module):
         video_len = video_len if video_len is not None else self.video_length
 
         # content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
-        content = z
-        content = np.repeat(content, video_len, axis=0)
-        content = torch.from_numpy(content)
+        content = torch.repeat_interleave(z, video_len, axis=0)
         if torch.cuda.is_available():
             content = content.cuda()
         return Variable(content)
