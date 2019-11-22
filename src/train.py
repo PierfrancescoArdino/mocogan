@@ -82,6 +82,7 @@ if torch.cuda.is_available():
     video_discriminator.cuda()
 
 trainer = Trainer(image_loader, video_loader,
+                  image_loader, video_loader,
                   print_every,
                   batches,
                   log_folder,
