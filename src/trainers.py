@@ -44,7 +44,7 @@ def one_hot_to_class(tensor):
 
 
 class Trainer(object):
-    def __init__(self, image_sampler, video_sampler, log_interval, train_batches, log_folder, use_cuda=False,
+    def __init__(self, image_sampler, video_sampler, val_image_sampler, val_video_sampler, log_interval, train_batches, log_folder, use_cuda=False,
                  use_infogan=True, use_categories=True):
 
         self.use_categories = use_categories
@@ -54,6 +54,9 @@ class Trainer(object):
 
         self.image_sampler = image_sampler
         self.video_sampler = video_sampler
+
+        self.val_image_sampler = val_image_sampler
+        self.val_video_sampler = val_video_sampler
 
         self.video_batch_size = self.video_sampler.batch_size
         self.image_batch_size = self.image_sampler.batch_size
@@ -68,6 +71,8 @@ class Trainer(object):
 
         self.image_enumerator = None
         self.video_enumerator = None
+        self.val_image_enumerator = None
+        self.val_video_enumerator = None
 
     @staticmethod
     def ones_like(tensor, val=1.):
@@ -154,15 +159,42 @@ class Trainer(object):
 
         return b
 
+    def val_sample_real_image_batch(self):
+        if self.val_image_enumerator is None:
+            self.val_image_enumerator = enumerate(self.val_image_sampler)
+
+        batch_idx, batch = next(self.val_image_enumerator)
+        b = batch
+        if self.use_cuda:
+            for k, v in batch.iteritems():
+                b[k] = v.cuda()
+
+        if batch_idx == len(self.val_image_sampler) - 1:
+            self.val_image_enumerator = enumerate(self.val_image_sampler)
+
+        return b
+
+    def val_sample_real_video_batch(self):
+        val_video_enumerator = enumerate(self.val_video_sampler)
+        b = []
+        for batch_idx, batch in val_video_enumerator:
+            for k, v in batch.iteritems():
+                if self.use_cuda:
+                    b[k] = v.cuda()
+                else:
+                    b[k] = v
+
+        return b
+
     def train_discriminator(self, discriminator, sample_true, sample_fake, opt, batch_size, use_categories):
         opt.zero_grad()
 
-        real_batch = sample_true()
+        real_batch = sample_true
         batch = Variable(real_batch['images'], requires_grad=False)
 
         # util.show_batch(batch.data)
 
-        fake_batch, generated_categories = sample_fake(batch_size)
+        fake_batch, generated_categories = sample_fake(batch_size, real_batch['images'])
 
         real_labels, real_categorical = discriminator(batch)
         fake_labels, fake_categorical = discriminator(fake_batch.detach())
@@ -186,13 +218,13 @@ class Trainer(object):
     def train_generator(self,
                         image_discriminator, video_discriminator,
                         sample_fake_images, sample_fake_videos,
-                        opt):
+                        opt, batch_real_images, batch_real_videos):
 
         opt.zero_grad()
 
         # train on images
 
-        fake_batch, generated_categories = sample_fake_images(self.image_batch_size)
+        fake_batch, generated_categories = sample_fake_images(self.image_batch_size, batch_real_images['images'])
         fake_labels, fake_categorical = image_discriminator(fake_batch)
         all_ones = self.ones_like(fake_labels)
 
@@ -200,7 +232,7 @@ class Trainer(object):
 
         # train on videos
 
-        fake_batch, generated_categories = sample_fake_videos(self.video_batch_size)
+        fake_batch, generated_categories = sample_fake_videos(self.video_batch_size, batch_real_videos['images'])
         fake_labels, fake_categorical = video_discriminator(fake_batch)
         all_ones = self.ones_like(fake_labels)
 
@@ -232,11 +264,11 @@ class Trainer(object):
 
         # training loop
 
-        def sample_fake_image_batch(batch_size):
-            return generator.sample_images(batch_size)
+        def sample_fake_image_batch(batch_size, real_batch):
+            return generator.sample_images(batch_size, real_batch)
 
-        def sample_fake_video_batch(batch_size):
-            return generator.sample_videos(batch_size)
+        def sample_fake_video_batch(batch_size, real_batch):
+            return generator.sample_videos(batch_size, real_batch)
 
         def init_logs():
             return {'l_gen': 0, 'l_image_dis': 0, 'l_video_dis': 0}
@@ -255,26 +287,28 @@ class Trainer(object):
             opt_generator.zero_grad()
 
             opt_video_discriminator.zero_grad()
+            real_image_batch = self.sample_real_image_batch()
+            real_video_batch = self.sample_real_video_batch()
 
             # train image discriminator
-            l_image_dis = self.train_discriminator(image_discriminator, self.sample_real_image_batch,
+            l_image_dis = self.train_discriminator(image_discriminator, real_image_batch,
                                                    sample_fake_image_batch, opt_image_discriminator,
                                                    self.image_batch_size, use_categories=False)
 
             # train video discriminator
-            l_video_dis = self.train_discriminator(video_discriminator, self.sample_real_video_batch,
+            l_video_dis = self.train_discriminator(video_discriminator, real_video_batch,
                                                    sample_fake_video_batch, opt_video_discriminator,
                                                    self.video_batch_size, use_categories=self.use_categories)
 
             # train generator
             l_gen = self.train_generator(image_discriminator, video_discriminator,
                                          sample_fake_image_batch, sample_fake_video_batch,
-                                         opt_generator)
+                                         opt_generator, real_image_batch, real_video_batch)
 
-            logs['l_gen'] += l_gen.data[0]
+            logs['l_gen'] += l_gen.data
 
-            logs['l_image_dis'] += l_image_dis.data[0]
-            logs['l_video_dis'] += l_video_dis.data[0]
+            logs['l_image_dis'] += l_image_dis.data
+            logs['l_video_dis'] += l_video_dis.data
 
             batch_num += 1
 
@@ -286,7 +320,7 @@ class Trainer(object):
 
                 log_string += ". Took %5.2f" % (time.time() - start_time)
 
-                print(log_string)
+                print log_string
 
                 for tag, value in logs.items():
                     logger.scalar_summary(tag, value / self.log_interval, batch_num)
@@ -296,10 +330,10 @@ class Trainer(object):
 
                 generator.eval()
 
-                images, _ = sample_fake_image_batch(self.image_batch_size)
+                images, _ = sample_fake_image_batch(self.image_batch_size, self.val_sample_real_image_batch())
                 logger.image_summary("Images", images_to_numpy(images), batch_num)
 
-                videos, _ = sample_fake_video_batch(self.video_batch_size)
+                videos, _ = sample_fake_video_batch(self.video_batch_size, self.val_sample_real_video_batch)
                 logger.video_summary("Videos", videos_to_numpy(videos), batch_num)
 
                 torch.save(generator, os.path.join(self.log_folder, 'generator_%05d.pytorch' % batch_num))

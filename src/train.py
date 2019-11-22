@@ -123,6 +123,7 @@ if __name__ == "__main__":
         video_discriminator.cuda()
 
     trainer = Trainer(image_loader, video_loader,
+                      image_loader, video_loader,  # TODO: validation datasets here
                       int(args['--print_every']),
                       int(args['--batches']),
                       args['<log_folder>'],
