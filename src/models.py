@@ -8,8 +8,8 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.utils.data
 from torch.autograd import Variable
-from motion_encoder import MotionEncoder
 from cyclegan_generator import CycleGenerator
+import torch.nn.functional as F
 import numpy as np
 
 if torch.cuda.is_available():
@@ -183,9 +183,30 @@ class CategoricalVideoDiscriminator(VideoDiscriminator):
         return labels, categ
 
 
+class ContentMotionEncoder(nn.Module):
+    def __init__(self, dim_z_content, dim_z_motion):
+        super(ContentMotionEncoder, self).__init__()
+
+        self.fc0 = nn.Linear(4096, 2048, bias=True)
+        self.fc1 = nn.Linear(2048, 1024, bias=True)
+        self.fc2 = nn.Linear(1024, 512, bias=True)
+        self.fc3 = nn.Linear(512, 256, bias=True)
+
+        self.fc4 = nn.Linear(256, dim_z_content, bias=True)
+        self.fc5 = nn.Linear(256, dim_z_motion, bias=True)
+
+    def forward(self, x):
+        x = x.view(-1, 4096)
+        x = F.leaky_relu(self.fc0(x))
+        x = F.leaky_relu(self.fc1(x))
+        x = F.leaky_relu(self.fc2(x))
+        h1 = F.leaky_relu(self.fc3(x))
+        return self.fc4(h1), self.fc5(h1)
+
+
 class VideoGenerator(nn.Module):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
-                 video_length, ngf=64):
+                 video_length, contentngf=64):
         super(VideoGenerator, self).__init__()
 
         self.n_channels = n_channels
@@ -198,7 +219,7 @@ class VideoGenerator(nn.Module):
 
         self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
 
-        self.motion_encoder = MotionEncoder()
+        self.motion_encoder = ContentMotionEncoder(dim_z_content, dim_z_motion)
 
         self.main = nn.Sequential(
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),

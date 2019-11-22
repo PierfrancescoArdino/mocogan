@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
-class MotionEncoder(nn.Module):
+class ContentMotionEncoder(nn.Module):
     def __init__(self):
-        super(MotionEncoder, self).__init__()
+        super(ContentMotionEncoder, self).__init__()
 
         self.fc0 = nn.Linear(4096, 2048, bias=True)
         self.fc1 = nn.Linear(2048, 1024, bias=True)
