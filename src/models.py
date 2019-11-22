@@ -8,7 +8,8 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.utils.data
 from torch.autograd import Variable
-
+from motion_encoder import MotionEncoder
+from cyclegan_generator import CycleGenerator
 import numpy as np
 
 if torch.cuda.is_available():
@@ -197,6 +198,8 @@ class VideoGenerator(nn.Module):
 
         self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
 
+        self.motion_encoder = MotionEncoder()
+
         self.main = nn.Sequential(
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
@@ -214,10 +217,11 @@ class VideoGenerator(nn.Module):
             nn.Tanh()
         )
 
-    def sample_z_m(self, num_samples, video_len=None):
+    def sample_z_m(self, num_samples, h, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
 
-        h_t = [self.get_gru_initial_state(num_samples)]
+        #h_t = [self.get_gru_initial_state(num_samples)]
+        h_t = [h]
 
         for frame_num in range(video_len):
             e_t = self.get_iteration_noise(num_samples)
@@ -246,20 +250,22 @@ class VideoGenerator(nn.Module):
 
         return Variable(one_hot_video), classes_to_generate
 
-    def sample_z_content(self, num_samples, video_len=None):
+    def sample_z_content(self, num_samples, z, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
 
-        content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
+        #content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
+        content = z
         content = np.repeat(content, video_len, axis=0)
         content = torch.from_numpy(content)
         if torch.cuda.is_available():
             content = content.cuda()
         return Variable(content)
 
-    def sample_z_video(self, num_samples, video_len=None):
-        z_content = self.sample_z_content(num_samples, video_len)
+    def sample_z_video(self, num_samples, input_images, video_len=None):
+        z, h = self.motion_encoder(input_images)
+        z_content = self.sample_z_content(num_samples, z, video_len)
         z_category, z_category_labels = self.sample_z_categ(num_samples, video_len)
-        z_motion = self.sample_z_m(num_samples, video_len)
+        z_motion = self.sample_z_m(num_samples, h, video_len)
 
         if z_category is not None:
             z = torch.cat([z_content, z_category, z_motion], dim=1)
@@ -285,6 +291,7 @@ class VideoGenerator(nn.Module):
         return h, Variable(z_category_labels, requires_grad=False)
 
     def sample_images(self, num_samples):
+
         z, z_category_labels = self.sample_z_video(num_samples * self.video_length * 2)
 
         j = np.sort(np.random.choice(z.size(0), num_samples, replace=False)).astype(np.int64)
