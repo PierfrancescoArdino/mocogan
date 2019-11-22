@@ -10,10 +10,10 @@ from trainers import Trainer
 
 
 def build_discriminator(type, **kwargs):
-      if type=="PatchImageDiscriminator":
-        return PatchImageDiscriminator(**kwargs)#discriminator_type(**kwargs)
-      if type=="CategoricalVideoDiscriminator":
-        return CategoricalVideoDiscriminator(**kwargs)#discriminator_type(**kwargs)
+      if type == "PatchImageDiscriminator":
+        return PatchImageDiscriminator(**kwargs)
+      if type == "CategoricalVideoDiscriminator":
+        return CategoricalVideoDiscriminator(**kwargs)
 
 
 def video_transform(video, image_transform):
@@ -26,7 +26,7 @@ def video_transform(video, image_transform):
     return vid
 
 
-img_size=64
+img_size = 64
 video_length = 16
 image_batch = 10
 video_batch = 3
@@ -34,19 +34,19 @@ video_batch = 3
 dim_z_content = 10
 dim_z_motion = 10
 dim_z_category = 2
-print_every=30
-batches=100000
-log_folder="./"
-use_infogan=0
-use_categories=1
+print_every = 30
+batches = 100000
+log_folder = "./"
+use_infogan = 0
+use_categories = 1
 
 
-image_discriminator="PatchImageDiscriminator"
-video_discriminator="CategoricalVideoDiscriminator"
-use_noise=0
+image_discriminator = "PatchImageDiscriminator"
+video_discriminator = "CategoricalVideoDiscriminator"
+use_noise = 0
 noise_sigma = 0
 n_channels = 3
-dataset="mocogan/data/shapes"
+dataset = "data/shapes"
 
 image_transforms = transforms.Compose([
     PIL.Image.fromarray,
