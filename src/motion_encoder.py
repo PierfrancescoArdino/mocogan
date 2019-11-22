@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 
 class MotionEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, dim_z_content, dim_z_motion):
         super(MotionEncoder, self).__init__()
 
         self.fc0 = nn.Linear(12288, 4096, bias=True)
@@ -12,8 +12,8 @@ class MotionEncoder(nn.Module):
         self.fc3 = nn.Linear(1024, 512, bias=True)
         self.fc4 = nn.Linear(512, 256, bias=True)
 
-        self.fc5 = nn.Linear(256, 2, bias=True)
-        self.fc6 = nn.Linear(256, 2, bias=True)
+        self.fc5 = nn.Linear(256, dim_z_content, bias=True)
+        self.fc6 = nn.Linear(256, dim_z_motion, bias=True)
 
     def forward(self, x):
         x = x.view(-1, 12288)
