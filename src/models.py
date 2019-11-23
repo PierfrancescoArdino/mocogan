@@ -32,6 +32,7 @@ class MotionEncoder(nn.Module):
         self.fc6 = nn.Linear(256, dim_z_motion, bias=True)
 
     def forward(self, x):
+        x = x.reshape(-1, 12288)
         x = F.leaky_relu(self.fc0(x))
         x = F.leaky_relu(self.fc1(x))
         x = F.leaky_relu(self.fc2(x))
@@ -313,7 +314,7 @@ class VideoGenerator(nn.Module):
     def sample_videos(self, num_samples, input_videos, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
         # Take the first image for the video
-        input_videos = input_videos[:, :, 0, :, :].reshape(-1, 12288)
+        input_videos = input_videos[:, :, 0, :, :]
         z, z_category_labels = self.sample_z_video(num_samples, input_videos, False, video_len)
 
         h = self.main(z.view(z.size(0), z.size(1), 1, 1))
@@ -328,7 +329,6 @@ class VideoGenerator(nn.Module):
         return h, Variable(z_category_labels, requires_grad=False)
 
     def sample_images(self, num_samples, input_images):
-        input_images = input_images.reshape(-1, 12288)
         z, z_category_labels = self.sample_z_video(num_samples * self.video_length * 2, input_images, True)
 
         j = np.sort(np.random.choice(z.size(0), num_samples, replace=False)).astype(np.int64)

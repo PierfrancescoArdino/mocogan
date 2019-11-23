@@ -6,6 +6,7 @@ Licensed under the CC BY-NC-ND 4.0 license (https://creativecommons.org/licenses
 import tensorflow as tf
 import numpy as np
 import scipy.misc
+import PIL.Image as pilim
 
 try:
     from StringIO import StringIO  # Python 2.7
@@ -30,7 +31,7 @@ class Logger(object):
                 s = StringIO()
             except:
                 s = BytesIO()
-            scipy.misc.toimage(img).save(s, format="png")
+            pilim.fromarray(img).save(s, format="png")
 
             # Create an Image object
             img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),

@@ -327,10 +327,11 @@ class Trainer(object):
 
                 generator.eval()
 
-                images, _ = sample_fake_image_batch(self.image_batch_size, self.val_sample_real_image_batch)
+                val_batch_imgs = list(self.val_sample_real_image_batch().values())[0]
+                images, _ = sample_fake_image_batch(self.image_batch_size, val_batch_imgs)
                 logger.image_summary("Images", images_to_numpy(images), batch_num)
-
-                videos, _ = sample_fake_video_batch(self.video_batch_size, self.val_sample_real_video_batch)
+                val_batch_videos = list(self.val_sample_real_video_batch().values())[0]
+                videos, _ = sample_fake_video_batch(self.video_batch_size, val_batch_videos)
                 logger.video_summary("Videos", videos_to_numpy(videos), batch_num)
 
                 torch.save(generator, os.path.join(self.log_folder, 'generator_%05d.pytorch' % batch_num))
