@@ -287,6 +287,7 @@ class Trainer(object):
             real_video_batch = self.sample_real_video_batch()
 
             # train image discriminator
+
             l_image_dis = self.train_discriminator(image_discriminator, real_image_batch,
                                                    sample_fake_image_batch, opt_image_discriminator,
                                                    self.image_batch_size, use_categories=False)
