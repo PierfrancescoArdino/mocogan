@@ -36,7 +36,7 @@ dim_z_motion = 320
 dim_z_category = 2
 print_every = 30
 batches = 100000
-log_folder = "./tf_conv"
+log_folder = "./prova"
 use_infogan = 0
 use_categories = 1
 
