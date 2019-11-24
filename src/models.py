@@ -5,40 +5,17 @@ Licensed under the CC BY-NC-ND 4.0 license (https://creativecommons.org/licenses
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.nn.parallel
 import torch.utils.data
 from torch.autograd import Variable
 import numpy as np
+from src.motion_encoder import MotionEncoder, MotionConvEncoder
 
 
 if torch.cuda.is_available():
     T = torch.cuda
 else:
     T = torch
-
-
-class MotionEncoder(nn.Module):
-    def __init__(self, dim_z_content, dim_z_motion):
-        super(MotionEncoder, self).__init__()
-
-        self.fc0 = nn.Linear(12288, 4096, bias=True)
-        self.fc1 = nn.Linear(4096, 2048, bias=True)
-        self.fc2 = nn.Linear(2048, 1024, bias=True)
-        self.fc3 = nn.Linear(1024, 512, bias=True)
-        self.fc4 = nn.Linear(512, 256, bias=True)
-
-        self.fc5 = nn.Linear(256, dim_z_content, bias=True)
-        self.fc6 = nn.Linear(256, dim_z_motion, bias=True)
-
-    def forward(self, x):
-        x = x.reshape(-1, 12288)
-        x = F.leaky_relu(self.fc0(x))
-        x = F.leaky_relu(self.fc1(x))
-        x = F.leaky_relu(self.fc2(x))
-        x = F.leaky_relu(self.fc3(x))
-        h1 = F.leaky_relu(self.fc4(x))
-        return self.fc5(h1), self.fc6(h1)
 
 
 class Noise(nn.Module):
@@ -223,6 +200,8 @@ class VideoGenerator(nn.Module):
 
         self.motion_encoder = MotionEncoder(dim_z_content, dim_z_motion)
 
+        self.motion_conv_encoder = MotionConvEncoder(dim_z_content, dim_z_motion)
+
         self.main = nn.Sequential(
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
@@ -299,7 +278,8 @@ class VideoGenerator(nn.Module):
         return Variable(content)
 
     def sample_z_video(self, num_samples, input_images, is_images, video_len=None):
-        z, h = self.motion_encoder(input_images)
+        #z, h = self.motion_encoder(input_images)
+        z, h = self.motion_conv_encoder(input_images)
         z_content = self.sample_z_content(num_samples, is_images, z, video_len)
         z_category, z_category_labels = self.sample_z_categ(num_samples, video_len)
         z_motion = self.sample_z_m(num_samples, h, is_images, video_len)

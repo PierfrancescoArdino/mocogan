@@ -1,5 +1,5 @@
-import torch
 import torch.nn as nn
+from src.motion_encoder import MotionEncoder
 
 
 class ResidualBlock(nn.Module):
@@ -21,12 +21,25 @@ class ResidualBlock(nn.Module):
 
 
 class CycleGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, n_residual_blocks=9):
+    def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
+                 video_length, ngf=64, n_residual_blocks=9):
         super(CycleGenerator, self).__init__()
+
+        self.n_channels = n_channels
+        self.dim_z_content = dim_z_content
+        self.dim_z_category = dim_z_category
+        self.dim_z_motion = dim_z_motion
+        self.video_length = video_length
+
+        dim_z = dim_z_motion + dim_z_category + dim_z_content
+
+        self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
+
+        self.motion_encoder = MotionEncoder(dim_z_content, dim_z_motion)
 
         # Initial convolution block
         model = [nn.ReflectionPad2d(3),
-                 nn.Conv2d(input_nc, 64, 7),
+                 nn.Conv2d(n_channels, 64, 7),
                  nn.InstanceNorm2d(64),
                  nn.ReLU(inplace=True)]
 
@@ -55,7 +68,7 @@ class CycleGenerator(nn.Module):
 
         # Output layer
         model += [nn.ReflectionPad2d(3),
-                  nn.Conv2d(64, output_nc, 7),
+                  nn.Conv2d(64, self.n_channels, 7),
                   nn.Tanh()]
 
         self.model = nn.Sequential(*model)
