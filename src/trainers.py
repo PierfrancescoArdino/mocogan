@@ -106,7 +106,6 @@ class Trainer(object):
         # l.backward()
         # opt.step()
 
-
         #  sample again and compute for generator
 
         fake_gt = self.get_gt_for_generator(batch_size)
@@ -132,7 +131,7 @@ class Trainer(object):
         batch_idx, batch = next(self.image_enumerator)
         b = batch
         if self.use_cuda:
-            for k, v in batch.items():
+            for k, v in iter(batch.items()):
                 b[k] = v.cuda()
 
         if batch_idx == len(self.image_sampler) - 1:
@@ -147,38 +146,11 @@ class Trainer(object):
         batch_idx, batch = next(self.video_enumerator)
         b = batch
         if self.use_cuda:
-            for k, v in batch.items():
+            for k, v in iter(batch.items()):
                 b[k] = v.cuda()
 
         if batch_idx == len(self.video_sampler) - 1:
             self.video_enumerator = enumerate(self.video_sampler)
-
-        return b
-
-    def val_sample_real_image_batch(self):
-        if self.val_image_enumerator is None:
-            self.val_image_enumerator = enumerate(self.val_image_sampler)
-
-        batch_idx, batch = next(self.val_image_enumerator)
-        b = batch
-        if self.use_cuda:
-            for k, v in batch.items():
-                b[k] = v.cuda()
-
-        if batch_idx == len(self.val_image_sampler) - 1:
-            self.val_image_enumerator = enumerate(self.val_image_sampler)
-
-        return b
-
-    def val_sample_real_video_batch(self):
-        val_video_enumerator = enumerate(self.val_video_sampler)
-        b = []
-        for batch_idx, batch in val_video_enumerator:
-            for k, v in batch.items():
-                if self.use_cuda:
-                    b[k] = v.cuda()
-                else:
-                    b[k] = v
 
         return b
 
@@ -327,11 +299,11 @@ class Trainer(object):
 
                 generator.eval()
 
-                val_batch_imgs = list(self.val_sample_real_image_batch().values())[0]
-                images, _ = sample_fake_image_batch(self.image_batch_size, val_batch_imgs)
+                batch_imgs = list(self.sample_real_image_batch().values())[0]
+                images, _ = sample_fake_image_batch(self.image_batch_size, batch_imgs)
                 logger.image_summary("Images", images_to_numpy(images), batch_num)
-                val_batch_videos = list(self.val_sample_real_video_batch().values())[0]
-                videos, _ = sample_fake_video_batch(self.video_batch_size, val_batch_videos)
+                batch_videos = list(self.sample_real_video_batch().values())[0]
+                videos, _ = sample_fake_video_batch(self.video_batch_size, batch_videos)
                 logger.video_summary("Videos", videos_to_numpy(videos), batch_num)
 
                 torch.save(generator, os.path.join(self.log_folder, 'generator_%05d.pytorch' % batch_num))

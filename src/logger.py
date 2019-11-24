@@ -5,7 +5,6 @@ Licensed under the CC BY-NC-ND 4.0 license (https://creativecommons.org/licenses
 
 import tensorflow as tf
 import numpy as np
-import scipy.misc
 import PIL.Image as pilim
 
 try:
@@ -15,7 +14,7 @@ except ImportError:
 
 
 class Logger(object):
-    def __init__(self, log_dir, suffix=None):
+    def __init__(self, log_dir):
         self.writer = tf.summary.FileWriter(log_dir)
 
     def scalar_summary(self, tag, value, step):
@@ -65,7 +64,7 @@ class Logger(object):
             v = [np.squeeze(f) for f in np.split(v, v.shape[0], axis=0)]
             img = np.concatenate(v, axis=1)[:, :-1, :]
 
-            scipy.misc.toimage(img).save(s, format="png")
+            pilim.fromarray(img).save(s, format="png")
 
             # Create an Image object
             img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),
