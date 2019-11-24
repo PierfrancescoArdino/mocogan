@@ -184,6 +184,9 @@ class Trainer(object):
 
         return l_discriminator
 
+    def z_content_loss(self, content_imgs, generated_imgs):
+        return 0.1 * self.mse_criterion(content_imgs, generated_imgs)
+
     def train_generator(self,
                         image_discriminator, video_discriminator,
                         sample_fake_images, sample_fake_videos,
@@ -199,6 +202,8 @@ class Trainer(object):
 
         l_generator = self.gan_criterion(fake_labels, all_ones)
 
+        l_generator += self.z_content_loss(batch_real_images['images'], fake_batch)
+
         # train on videos
 
         fake_batch, generated_categories = sample_fake_videos(self.video_batch_size, batch_real_videos['images'])
@@ -206,6 +211,8 @@ class Trainer(object):
         all_ones = self.ones_like(fake_labels)
 
         l_generator += self.gan_criterion(fake_labels, all_ones)
+
+        l_generator += self.z_content_loss(batch_real_videos['images'], fake_batch)
 
         if self.use_infogan:
             # Ask the generator to generate categories recognizable by the discriminator
