@@ -51,10 +51,12 @@ class MotionConvEncoder(nn.Module):
             nn.ReLU(True)
         )
         self.z_m = nn.Sequential(View((-1, 256 * 1 * 1)),  # B, 256
-            nn.Linear(256, dim_z_motion))
+            nn.Linear(256, dim_z_motion),
+            nn.Tanh())
 
         self.z_c = nn.Sequential(View((-1, 256 * 1 * 1)),  # B, 256
-            nn.Linear(256, dim_z_content))
+            nn.Linear(256, dim_z_content),
+            nn.Tanh())
 
     def forward(self, x):
         x = self.enc(x)
