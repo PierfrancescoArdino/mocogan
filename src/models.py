@@ -17,6 +17,23 @@ if torch.cuda.is_available():
 else:
     T = torch
 
+class ResidualBlock(nn.Module):
+    def __init__(self, in_features):
+        super(ResidualBlock, self).__init__()
+
+        conv_block = [nn.ReflectionPad2d(1),
+                        nn.Conv2d(in_features, in_features, 3),
+                        nn.InstanceNorm2d(in_features),
+                        nn.ReLU(inplace=True),
+                        nn.ReflectionPad2d(1),
+                        nn.Conv2d(in_features, in_features, 3),
+                        nn.InstanceNorm2d(in_features)]
+
+        self.conv_block = nn.Sequential(*conv_block)
+
+    def forward(self, x):
+        return x + self.conv_block(x)
+
 
 class Noise(nn.Module):
     def __init__(self, use_noise, sigma=0.2):
@@ -182,6 +199,153 @@ class CategoricalVideoDiscriminator(VideoDiscriminator):
         labels, categ = self.split(h)
         return labels, categ
 
+class CycleGanVideoGenerator(nn.Module):
+    def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
+                 video_length, ngf=64):
+        super(CycleGanVideoGenerator, self).__init__()
+
+        self.n_channels = n_channels
+        self.dim_z_content = dim_z_content
+        self.dim_z_category = dim_z_category
+        self.dim_z_motion = dim_z_motion
+        self.video_length = video_length
+
+        dim_z = dim_z_motion + dim_z_category + dim_z_content
+
+        self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
+
+        self.motion_encoder = MotionEncoder(dim_z_content, dim_z_motion)
+
+        self.motion_conv_encoder = MotionConvEncoder(dim_z_content, dim_z_motion)
+
+        # Initial convolution block
+        self.main = [nn.ReflectionPad2d(0),
+                 nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0),
+                 nn.BatchNorm2d(ngf * 8),
+                 nn.ReLU(inplace=True)]
+
+        for _ in range(4):
+            self.main += [ResidualBlock(ngf * 8)]
+
+        self.main += [
+            nn.ConvTranspose2d(ngf * 8, ngf * 4, 3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm2d(ngf * 4),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm2d(ngf * 2),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf * 2, ngf, 3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm2d(ngf),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf, self.n_channels, 3, stride=2, padding=1, output_padding=1),
+            nn.Tanh()]
+
+        self.main = nn.Sequential(*self.main)
+
+    def sample_z_m(self, num_samples, h, is_images, video_len=None):
+        video_len = video_len if video_len is not None else self.video_length
+
+        #h_t = [self.get_gru_initial_state(num_samples)]
+
+        if is_images is True:
+            h_t = [torch.repeat_interleave(h, 2 * video_len, dim=0)]
+        else:
+            h_t = [h]
+
+        for frame_num in range(video_len):
+            e_t = self.get_iteration_noise(num_samples)
+            h_t.append(self.recurrent(e_t, h_t[-1]))
+
+        z_m_t = [h_k.view(-1, 1, self.dim_z_motion) for h_k in h_t]
+        z_m = torch.cat(z_m_t[1:], dim=1).view(-1, self.dim_z_motion)
+
+        return z_m
+
+    def sample_z_categ(self, num_samples, video_len):
+        video_len = video_len if video_len is not None else self.video_length
+
+        if self.dim_z_category <= 0:
+            return None, np.zeros(num_samples)
+
+        classes_to_generate = np.random.randint(self.dim_z_category, size=num_samples)
+        one_hot = np.zeros((num_samples, self.dim_z_category), dtype=np.float32)
+        one_hot[np.arange(num_samples), classes_to_generate] = 1
+        one_hot_video = np.repeat(one_hot, video_len, axis=0)
+
+        one_hot_video = torch.from_numpy(one_hot_video)
+
+        if torch.cuda.is_available():
+            one_hot_video = one_hot_video.cuda()
+
+        return Variable(one_hot_video), classes_to_generate
+
+    def sample_z_content(self, num_samples, is_images, z, video_len=None):
+        video_len = video_len if video_len is not None else self.video_length
+
+        if is_images:
+            content = torch.repeat_interleave(z, 2 * video_len, dim=0)
+            content = torch.repeat_interleave(content, video_len, dim=0)
+        else:
+            content = torch.repeat_interleave(z, video_len, dim=0)
+
+        ##########ORIGINAL##########
+        """
+        content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
+        content = np.repeat(content, video_len, axis=0)
+        content = torch.from_numpy(content)
+        """
+        ###########################
+
+        if torch.cuda.is_available():
+            content = content.cuda()
+        return Variable(content)
+
+    def sample_z_video(self, num_samples, input_images, is_images, video_len=None):
+        #z, h = self.motion_encoder(input_images)
+        z, h = self.motion_conv_encoder(input_images)
+        z_content = self.sample_z_content(num_samples, is_images, z, video_len)
+        z_category, z_category_labels = self.sample_z_categ(num_samples, video_len)
+        z_motion = self.sample_z_m(num_samples, h, is_images, video_len)
+
+        if z_category is not None:
+            z = torch.cat([z_content, z_category, z_motion], dim=1)
+        else:
+            z = torch.cat([z_content, z_motion], dim=1)
+
+        return z, z_category_labels
+
+    def sample_videos(self, num_samples, input_videos, video_len=None):
+        video_len = video_len if video_len is not None else self.video_length
+        # Take the first image for the video
+        input_videos = input_videos[:, :, 0, :, :]
+        z, z_category_labels = self.sample_z_video(num_samples, input_videos, False, video_len)
+
+        h = self.main(z.view(z.size(0), z.size(1), 1, 1))
+        h = h.view(int(h.size(0) / video_len), video_len, self.n_channels, h.size(3), h.size(3))
+
+        z_category_labels = torch.from_numpy(z_category_labels)
+
+        if torch.cuda.is_available():
+            z_category_labels = z_category_labels.cuda()
+
+        h = h.permute(0, 2, 1, 3, 4)
+        return h, Variable(z_category_labels, requires_grad=False)
+
+    def sample_images(self, num_samples, input_images):
+        z, z_category_labels = self.sample_z_video(num_samples * self.video_length * 2, input_images, True)
+
+        j = np.sort(np.random.choice(z.size(0), num_samples, replace=False)).astype(np.int64)
+        z = z[j, ::]
+        z = z.view(z.size(0), z.size(1), 1, 1)
+        h = self.main(z)
+
+        return h, None
+
+    def get_gru_initial_state(self, num_samples):
+        return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
+
+    def get_iteration_noise(self, num_samples):
+        return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
 
 class VideoGenerator(nn.Module):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,

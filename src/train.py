@@ -4,7 +4,7 @@ import functools
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from models import PatchImageDiscriminator, CategoricalVideoDiscriminator, VideoGenerator
+from models import PatchImageDiscriminator, CategoricalVideoDiscriminator, VideoGenerator, CycleGanVideoGenerator
 from data import VideoFolderDataset, ImageDataset, VideoDataset
 from trainers import Trainer
 
@@ -39,6 +39,7 @@ batches = 100000
 log_folder = "./prova"
 use_infogan = 0
 use_categories = 1
+use_cyclegan_gen = True
 
 
 image_discriminator = "PatchImageDiscriminator"
@@ -66,9 +67,11 @@ image_loader = DataLoader(image_dataset, batch_size=image_batch, drop_last=True,
 
 video_dataset = VideoDataset(dataset, 16, 2, video_transforms)
 video_loader = DataLoader(video_dataset, batch_size=video_batch, drop_last=True, num_workers=2, shuffle=True)
-
-generator = VideoGenerator(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length)
-
+if use_cyclegan_gen:
+    generator = CycleGanVideoGenerator(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length)
+else:
+    generator = VideoGenerator(n_channels, dim_z_content, dim_z_category,
+                               dim_z_motion, video_length)
 image_discriminator = build_discriminator(image_discriminator, n_channels=n_channels,
                                           use_noise=use_noise, noise_sigma=noise_sigma)
 
