@@ -185,7 +185,7 @@ class Trainer(object):
         return l_discriminator
 
     def z_content_loss(self, content_imgs, generated_imgs):
-        return 0.1 * self.mse_criterion(content_imgs, generated_imgs)
+        return self.mse_criterion(content_imgs, generated_imgs)
 
     def train_generator(self,
                         image_discriminator, video_discriminator,
@@ -201,8 +201,6 @@ class Trainer(object):
         all_ones = self.ones_like(fake_labels)
 
         l_generator = self.gan_criterion(fake_labels, all_ones)
-
-        l_generator += self.z_content_loss(batch_real_images['images'], fake_batch)
 
         # train on videos
 
