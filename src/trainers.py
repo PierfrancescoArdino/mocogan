@@ -47,7 +47,7 @@ class Trainer(object):
 
         self.gan_criterion = nn.BCEWithLogitsLoss()
         self.category_criterion = nn.CrossEntropyLoss()
-        self.mse_criterion = nn.MSELoss()
+        self.mse_criterion = nn.L1Loss()
 
         self.image_sampler = image_sampler
         self.video_sampler = video_sampler
