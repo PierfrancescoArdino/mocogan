@@ -202,6 +202,8 @@ class Trainer(object):
 
         l_generator = self.gan_criterion(fake_labels, all_ones)
 
+        l_generator += self.z_content_loss(batch_real_images['images'], fake_batch)
+
         # train on videos
 
         fake_batch, generated_categories = sample_fake_videos(self.video_batch_size, batch_real_videos['images'])
